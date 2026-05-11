@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>BT3 - RSA gửi file an toàn</title>
+  <style>
+    :root{--blue:#2563eb;--blue2:#1d4ed8;--dark:#0f172a;--muted:#64748b;--bg:#eef4ff;--card:#fff;--border:#d6e0ef;--ok:#dcfce7;--oktext:#166534;--err:#fee2e2;--errtext:#991b1b;--warn:#fff7ed;--warntext:#9a3412}
+    *{box-sizing:border-box} body{margin:0;background:linear-gradient(180deg,#eef4ff,#f8fafc);font-family:Arial,Helvetica,sans-serif;color:#0f172a}
+    .wrap{max-width:1220px;margin:0 auto;padding:24px}.hero{background:linear-gradient(135deg,#1d4ed8,#0f172a);color:white;padding:28px;border-radius:22px;box-shadow:0 18px 40px rgba(15,23,42,.16)}
+    .hero h1{margin:0;font-size:30px}.flow{display:none}
+    .grid{display:grid;grid-template-columns:1fr 1fr;gap:22px;margin-top:22px}.card{background:var(--card);border:1px solid var(--border);border-radius:18px;padding:22px;box-shadow:0 10px 30px rgba(15,23,42,.08)}
+    h2{margin:0 0 14px;color:var(--blue2);font-size:23px}.hint{background:#eff6ff;border-left:5px solid var(--blue);border-radius:12px;padding:13px;line-height:1.55;margin-bottom:14px}.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+    button,.btn{border:0;border-radius:10px;padding:11px 15px;background:var(--blue);color:white;font-weight:700;cursor:pointer;text-decoration:none;display:inline-block}button:hover,.btn:hover{background:#1e40af}.secondary{background:#475569}.secondary:hover{background:#334155}.green{background:#16a34a}.green:hover{background:#15803d}
+    label{display:block;margin:13px 0 7px;font-weight:700}.small{font-size:13px;color:var(--muted);line-height:1.45}.file,input[type=text],textarea{width:100%;border:1px solid #cbd5e1;border-radius:11px;padding:11px;background:#f8fafc}textarea{min-height:92px;resize:vertical;font-family:Consolas,monospace;font-size:13px}.status{margin-top:14px;border-radius:12px;padding:13px;background:#eef2ff;color:#3730a3;font-weight:700;white-space:pre-wrap;line-height:1.45}.status.ok{background:var(--ok);color:var(--oktext)}.status.err{background:var(--err);color:var(--errtext)}.status.warn{background:var(--warn);color:var(--warntext)}
+    .full{grid-column:1/-1}.steps{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-top:18px}.step{background:white;border:1px solid var(--border);border-radius:14px;padding:14px}.step b{color:var(--blue2)}
+    .downloadBox{margin-top:12px}.downloadBox a{margin-right:8px;margin-top:8px}.topcheck{display:none}.mono{font-family:Consolas,monospace}.footer{text-align:center;color:#64748b;margin:26px 0 8px}.hidden{display:none}
+    @media(max-width:900px){.grid{grid-template-columns:1fr}.steps{grid-template-columns:1fr}.hero h1{font-size:24px}.wrap{padding:14px}}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <section class="hero">
+      <h1>BT3: RSA mã hóa/giải mã file + xác thực người gửi</h1>
+    </section>
+
+    <div class="steps">
+      <div class="step"><b>Bước 1</b><br>Máy nhận tạo khóa, gửi <span class="mono">receiver_public.pem</span> cho máy gửi.</div>
+      <div class="step"><b>Bước 2</b><br>Máy gửi tạo khóa, gửi <span class="mono">sender_public.pem</span> cho máy nhận.</div>
+      <div class="step"><b>Bước 3</b><br>Máy gửi chọn file, mã hóa bằng public key máy nhận và ký bằng private key máy gửi.</div>
+      <div class="step"><b>Bước 4</b><br>Máy nhận upload <span class="mono">package.bt3</span>, xác minh chữ ký và giải mã file.</div>
+    </div>
+
+    <main class="grid">
+      <section class="card">
+        <h2>1. Tạo khóa cho máy nhận</h2>
+        <div class="hint">Máy nhận giữ <b>receiver_private.pem</b>. Chỉ gửi <b>receiver_public.pem</b> cho máy gửi để mã hóa file.</div>
+        <div class="row">
+          <button onclick="genKey('receiver')">Tạo khóa máy nhận</button>
+          <a id="receiverPrivDown" class="btn secondary hidden">Tải receiver_private.pem</a>
+          <a id="receiverPubDown" class="btn secondary hidden">Tải receiver_public.pem</a>
+        </div>
+        <label>Receiver private key</label>
+        <textarea id="receiverPrivate" readonly placeholder="Khóa bí mật máy nhận..."></textarea>
+        <label>Receiver public key</label>
+        <textarea id="receiverPublic" readonly placeholder="Khóa công khai máy nhận..."></textarea>
+        <div id="receiverStatus" class="status">Chưa tạo khóa máy nhận.</div>
+      </section>
+
+      <section class="card">
+        <h2>2. Tạo khóa cho máy gửi</h2>
+        <div class="hint">Máy gửi giữ <b>sender_private.pem</b>. Chỉ gửi <b>sender_public.pem</b> cho máy nhận để xác minh chữ ký.</div>
+        <div class="row">
+          <button onclick="genKey('sender')">Tạo khóa máy gửi</button>
+          <a id="senderPrivDown" class="btn secondary hidden">Tải sender_private.pem</a>
+          <a id="senderPubDown" class="btn secondary hidden">Tải sender_public.pem</a>
+        </div>
+        <label>Sender private key</label>
+        <textarea id="senderPrivate" readonly placeholder="Khóa bí mật máy gửi..."></textarea>
+        <label>Sender public key</label>
+        <textarea id="senderPublic" readonly placeholder="Khóa công khai máy gửi..."></textarea>
+        <div id="senderStatus" class="status">Chưa tạo khóa máy gửi.</div>
+      </section>
+
+      <section class="card">
+        <h2>3. Máy gửi: Mã hóa file + ký</h2>
+        <div class="hint">Chọn file cần gửi. Nếu đã tạo khóa ở trên thì không cần upload key. Nếu làm trên 2 máy khác nhau, upload <b>receiver_public.pem</b> của máy nhận và <b>sender_private.pem</b> của máy gửi.</div>
+        <form id="packForm">
+          <label>File cần gửi</label>
+          <input class="file" type="file" name="file" required>
+          <label>Upload receiver_public.pem nếu chạy 2 máy</label>
+          <input class="file" type="file" name="receiverPublicFile" accept=".pem">
+          <label>Hoặc dán receiver public key</label>
+          <textarea name="receiverPublicText" id="receiverPublicText" placeholder="Có thể bỏ trống nếu đã tạo khóa máy nhận trên web này..."></textarea>
+          <label>Upload sender_private.pem nếu chạy 2 máy</label>
+          <input class="file" type="file" name="senderPrivateFile" accept=".pem">
+          <label>Hoặc dán sender private key</label>
+          <textarea name="senderPrivateText" id="senderPrivateText" placeholder="Có thể bỏ trống nếu đã tạo khóa máy gửi trên web này..."></textarea>
+          <div class="row" style="margin-top:14px">
+            <button type="submit">Mã hóa + ký → tạo package.bt3</button>
+            <a id="packageDown" class="btn green hidden">Tải package.bt3</a>
+          </div>
+        </form>
+        <div id="packStatus" class="status">Chưa tạo gói gửi.</div>
+      </section>
+
+      <section class="card">
+        <h2>4. Máy nhận: Xác minh + giải mã</h2>
+        <div class="hint">Upload <b>package.bt3</b> từ máy gửi. Máy nhận dùng <b>sender_public.pem</b> để xác thực người gửi và dùng <b>receiver_private.pem</b> để giải mã.</div>
+        <form id="unpackForm">
+          <label>Gói package.bt3</label>
+          <input class="file" type="file" name="packageFile" accept=".bt3" required>
+          <label>Upload receiver_private.pem</label>
+          <input class="file" type="file" name="receiverPrivateFile" accept=".pem">
+          <label>Hoặc dán receiver private key</label>
+          <textarea name="receiverPrivateText" id="receiverPrivateText" placeholder="Có thể bỏ trống nếu đã tạo khóa máy nhận trên web này..."></textarea>
+          <label>Upload sender_public.pem</label>
+          <input class="file" type="file" name="senderPublicFile" accept=".pem">
+          <label>Hoặc dán sender public key</label>
+          <textarea name="senderPublicText" id="senderPublicText" placeholder="Có thể bỏ trống nếu đã tạo khóa máy gửi trên web này..."></textarea>
+          <div class="row" style="margin-top:14px">
+            <button type="submit">Xác minh + giải mã</button>
+            <a id="decryptedDown" class="btn green hidden">Tải file đã giải mã</a>
+          </div>
+        </form>
+        <div id="unpackStatus" class="status">Chưa giải mã.</div>
+      </section>
+
+      <section class="card full">
+        <h2>Ghi chú nộp bài</h2>
+        <div class="hint">
+          Không dùng RSA để mã hóa trực tiếp file lớn. Cách đúng là <b>hybrid encryption</b>: AES mã hóa file, RSA mã hóa khóa AES. Xác thực người gửi được thực hiện bằng chữ ký số RSA-PSS/SHA-256.
+        </div>
+      </section>
+    </main>
+    <div class="footer">Backend: Python server gọi C++ OpenSSL. Server lắng nghe 0.0.0.0:8000 để có thể chạy demo trong cùng LAN.</div>
+  </div>
+
+<script>
+function setStatus(id, type, msg){
+  const el=document.getElementById(id); el.className='status '+(type||''); el.textContent=msg; el.classList.remove('hidden');
+}
+function showLink(id, href){ const a=document.getElementById(id); a.href=href; a.classList.remove('hidden'); }
+async function apiJson(url, opts){
+  const r=await fetch(url, opts); let data={};
+  try{data=await r.json();}catch(e){data={ok:false,message:await r.text()};}
+  if(!r.ok && data.ok!==false) data.ok=false;
+  return data;
+}
+async function checkBackend(){
+  setStatus('checkStatus','warn','Đang kiểm tra...');
+  const data=await apiJson('/api/check');
+  setStatus('checkStatus', data.ok?'ok':'err', data.message);
+}
+async function genKey(prefix){
+  const sid=prefix+'Status';
+  setStatus(sid,'warn','Đang tạo khóa RSA 2048-bit...');
+  const data=await apiJson('/api/genkey',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({prefix})});
+  if(data.ok){
+    document.getElementById(prefix+'Private').value=data.privateKey||'';
+    document.getElementById(prefix+'Public').value=data.publicKey||'';
+    if(prefix==='receiver'){
+      document.getElementById('receiverPublicText').value=data.publicKey||'';
+      document.getElementById('receiverPrivateText').value=data.privateKey||'';
+      showLink('receiverPrivDown',data.privateDownload); showLink('receiverPubDown',data.publicDownload);
+    } else {
+      document.getElementById('senderPrivateText').value=data.privateKey||'';
+      document.getElementById('senderPublicText').value=data.publicKey||'';
+      showLink('senderPrivDown',data.privateDownload); showLink('senderPubDown',data.publicDownload);
+    }
+    setStatus(sid,'ok',data.message);
+  }else setStatus(sid,'err',data.message);
+}
+
+document.getElementById('packForm').addEventListener('submit', async (e)=>{
+  e.preventDefault(); setStatus('packStatus','warn','Đang mã hóa file và ký...');
+  document.getElementById('packageDown').classList.add('hidden');
+  const fd=new FormData(e.target);
+  const data=await apiJson('/api/pack',{method:'POST',body:fd});
+  if(data.ok){ setStatus('packStatus','ok',data.message); showLink('packageDown',data.download); }
+  else setStatus('packStatus','err',data.message);
+});
+
+document.getElementById('unpackForm').addEventListener('submit', async (e)=>{
+  e.preventDefault(); setStatus('unpackStatus','warn','Đang xác minh chữ ký và giải mã...');
+  document.getElementById('decryptedDown').classList.add('hidden');
+  const fd=new FormData(e.target);
+  const data=await apiJson('/api/unpack',{method:'POST',body:fd});
+  if(data.ok){ setStatus('unpackStatus','ok',data.message); if(data.download) showLink('decryptedDown',data.download); }
+  else setStatus('unpackStatus','err',data.message);
+});
+
+checkBackend();
+</script>
+</body>
+</html>
